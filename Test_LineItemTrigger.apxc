@@ -1,0 +1,116 @@
+@isTest
+private class Test_LineItemTrigger {
+
+    @testSetup
+    static void testSetup() {
+        CustomSetting__c customSetting = new CustomSetting__c();
+        customSetting.ProductLineItemSyncSetting__c = false;
+        upsert customSetting;
+        List<Product2> prodList = new List<Product2>();
+        for(Integer i = 0; i < 5; i++) {
+            Product2 prod = new Product2(
+                name = 'Test Prod ' +i,
+                Family = 'Software'
+            );
+           prodList.add(prod); 
+        }
+        insert prodList;
+        prodList = [SELECT id FROM Product2];
+        id priceBookId = Test.getStandardPricebookId();
+        
+        List<PriceBookEntry> priceBookList = new List<PriceBookEntry>();
+        for(Integer i = 0; i < 5; i++) {
+            PriceBookEntry standardPrice = new PriceBookEntry(
+                PriceBook2Id = priceBookId,
+                Product2Id = prodList[i].id,
+                UnitPrice = 10 + i,
+                IsActive = true
+            );
+            priceBookList.add(standardPrice);
+        }
+        insert priceBookList;
+        priceBookList = [SELECT id FROM PriceBookEntry];
+        Opportunity o = new Opportunity(
+        	name = 'test opp',
+        	StageName = 'Prospecting',
+        	CloseDate = Date.Today(),
+            Products__c = 'blank',
+        	Pricebook2Id = priceBookId
+        );
+        insert o;
+        o = [SELECT id FROM Opportunity LIMIT 1];
+        List<OpportunityLineItem> oliList = new List<OpportunityLineItem>();
+		for(Integer i = 0; i < 5; i++) {
+            OpportunityLineItem oli = new OpportunityLineItem(
+                OpportunityId = o.id,
+                PriceBookEntryId = priceBookList[i].id,
+                Quantity = 1,
+                TotalPrice = 1.00
+            );
+             oliList.add(oli);
+        }
+        insert oliList;
+        customSetting.ProductLineItemSyncSetting__c = true;
+        upsert customSetting;
+    }
+    
+    private static Map<id,OpportunityLineItem> CreateOLIMap(List<OpportunityLineItem> oliList) {
+    	Map<id, OpportunityLineItem> returnMap = new Map<id, OpportunityLineItem>();
+        for(OpportunityLineItem oli : oliList) {
+            returnMap.put(oli.id,oli);
+        }
+        return returnMap;
+    }
+    
+    static TestMethod void Test_TriggerDelete() {
+        Opportunity o = [SELECT id FROM Opportunity LIMIT 1];
+        List<OpportunityLineItem> oppLineItems  = [SELECT id 
+                                                   FROM OpportunityLineItem 
+                                                   WHERE opportunityId = :o.id];
+        Test.startTest();
+        	delete oppLineItems[0];
+        Test.stopTest();
+        Opportunity opp = [SELECT Products__c,Name FROM Opportunity WHERE id = :o.id LIMIT 1];
+        List<OpportunityLineItem> oppLineItemsAfter  = [SELECT id,Name 
+                                                        FROM OpportunityLineItem 
+                                                        WHERE opportunityId = :opp.id];
+        List<String> nameList = new List<String>();
+        for (OpportunityLineItem oppline : oppLineItemsAfter) {
+            String oppLineName = oppLine.Name;
+            oppLineName = oppLineName.remove(opp.Name);
+            nameList.add(oppLineName);
+        }
+		String nameString = String.join(nameList, ',');
+        nameString = nameString.removeStart(' ');
+        System.assertEquals(opp.Products__c,nameString);
+    }
+    
+    static TestMethod void Test_TriggerInsert() {
+        Opportunity o = [SELECT id FROM Opportunity LIMIT 1];
+        PriceBookEntry pbe = [SELECT id FROM PriceBookEntry LIMIT 1];
+        OpportunityLineItem oli = new OpportunityLineItem(
+                OpportunityId = o.id,
+                PriceBookEntryId = pbe.id,
+                Quantity = 1,
+                TotalPrice = 1.00);
+        List<OpportunityLineItem> oppLineItems  = [SELECT id 
+                                                   FROM OpportunityLineItem 
+                                                   WHERE opportunityId = :o.id];
+        Test.startTest();
+        	insert oli;
+        Test.stopTest();
+        Opportunity opp = [SELECT Products__c,Name FROM Opportunity WHERE id = :o.id LIMIT 1];
+        List<OpportunityLineItem> oppLineItemsAfter  = [SELECT id,Name 
+                                                        FROM OpportunityLineItem 
+                                                        WHERE opportunityId = :opp.id];
+        List<String> nameList = new List<String>();
+        for (OpportunityLineItem oppline : oppLineItemsAfter) {
+            String oppLineName = oppLine.Name;
+            oppLineName = oppLineName.remove(opp.Name);
+            nameList.add(oppLineName);
+        }
+		String nameString = String.join(nameList, ',');
+        nameString = nameString.removeStart(' ');
+        System.assertEquals(opp.Products__c,nameString);
+    }
+}

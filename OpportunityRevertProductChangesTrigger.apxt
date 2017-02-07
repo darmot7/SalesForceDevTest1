@@ -1,0 +1,16 @@
+trigger OpportunityRevertProductChangesTrigger on Opportunity (before update) {
+
+    ProductLineItemSyncLogic plLogic = new ProductLineItemSyncLogic();
+    CustomSetting__c customSetting = CustomSetting__c.getInstance();
+    if (customSetting.ProductLineItemSyncSetting__c) {
+        if(Trigger.isBefore) {
+            if(Trigger.isUpdate) {
+                for(Opportunity o : Trigger.new) {
+                    if (Trigger.oldMap.get(o.id).Products__c != o.Products__c) {
+                		o.Products__c = Trigger.oldMap.get(o.id).Products__c; 
+                    }
+                }
+            }
+        }   
+    }
+}

@@ -1,0 +1,19 @@
+trigger LineItemTrigger on OpportunityLineItem (after insert,after delete) {
+
+    ProductLineItemSyncLogic plLogic = new ProductLineItemSyncLogic();
+    CustomSetting__c customSetting = CustomSetting__c.getInstance();
+    if (customSetting.ProductLineItemSyncSetting__c) {
+        if (Trigger.isAfter) {
+        	if (Trigger.isInsert) {
+                plLogic.DoAfterInsert(Trigger.newMap);
+                System.debug('After insert or update');
+                }
+        	else if (Trigger.isDelete) {
+                if (Trigger.isAfter) {
+                    plLogic.DoAfterDelete(Trigger.oldMap);
+                    System.debug('After delete');
+                }
+        	}
+    	}
+	}
+}

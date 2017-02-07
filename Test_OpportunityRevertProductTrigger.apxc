@@ -1,0 +1,35 @@
+@isTest
+private class Test_OpportunityRevertProductTrigger {
+
+    @TestSetup
+    static void testSetup() {
+        CustomSetting__c customSetting = new CustomSetting__c();
+        customSetting.ProductLineItemSyncSetting__c = false;
+        upsert customSetting;
+        List<Opportunity> oList = new List<Opportunity>();
+        for(Integer i = 0; i < 10; i++) {
+            Opportunity o = new Opportunity(
+                Name = 'test opp' + 1,
+                StageName = 'Prospecting',
+                CloseDate = Date.Today(),
+                Products__c = 'blank'
+            );
+            oList.add(o);
+            }
+        insert oList;
+        customSetting.ProductLineItemSyncSetting__c = true;
+        upsert customSetting;
+    }
+    
+    static TestMethod void Test_ChangeOppProducts() {
+        List<Opportunity> oList = [SELECT id,Products__c FROM Opportunity LIMIT 1];
+        String oldProducts = oList[0].Products__c;
+        oList[0].Products__c = 'not blank';
+        Test.StartTest();
+        	update oList;
+        Test.StopTest();
+        Opportunity oppAfterUpdate = [SELECT id,Products__c FROM Opportunity WHERE id = :oList[0].id LIMIT 1];
+        System.assertEquals(oppAfterUpdate.Products__c, oldProducts);
+        
+    }
+}

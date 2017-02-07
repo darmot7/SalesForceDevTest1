@@ -1,0 +1,62 @@
+public class ProductLineItemSyncLogic {
+    
+    public void DoAfterDelete(Map<id,OpportunityLineItem> oldMap) {
+        List<OpportunityLineItem> currentLineItems = [SELECT id,OpportunityId,Name 
+                                                      FROM OpportunityLineItem];
+        List<Opportunity> oppsToUpdate = new List<Opportunity>();
+		Map<id,OpportunityLineItem> oldMapCopy = new Map<id,OpportunityLineItem>(oldMap);        
+        for (OpportunityLineItem oppLine : currentLineItems) {
+            if (!oldMapCopy.containsKey(oppLine.id)) {
+                oldMapCopy.remove(oppLine.id);
+            }
+        }
+        Map<id,List<String>> oldOppLineMap = createMapOppIdtoOppLineNames(oldMapCopy.keySet());
+       	populateProductsField(oldOppLineMap);
+        
+    }
+    
+    public void DoAfterInsert(Map<id,OpportunityLineItem> newMap) {
+        Map<id,List<String>> newOppLineMap = createMapOppIdtoOppLineNames(newMap.keySet());
+        populateProductsField(newOppLineMap);
+    }
+    
+    private void populateProductsField(Map<Id,List<String>> oppToOppLineMap) {
+        List<Opportunity> oppList = [SELECT Products__c,Name FROM Opportunity WHERE id IN :oppToOppLineMap.keySet()];
+        List<Opportunity> oppsToUpdate = new List<Opportunity>();
+        for(Opportunity opp : oppList) {
+            List<String> nameListofOppLines = oppToOppLineMap.get(opp.id);
+            String names = String.join(nameListofOppLines, ',');
+            names = names.remove(opp.Name);
+			if (!names.equals(opp.Products__c)) {
+            	opp.Products__c = names;
+                oppsToUpdate.add(opp);
+            }
+        }
+        AonCustomSetting__c customSetting = [SELECT ProductLineItemSyncSetting__c FROM AonCustomSetting__c];
+        customSetting.ProductLineItemSyncSetting__c = false;
+        update customSetting;
+        
+        update oppsToUpdate;
+        
+        customSetting.ProductLineItemSyncSetting__c = true;
+        update customSetting;
+    }
+    
+    private Map<id,List<String>> createMapOppIdtoOppLineNames(Set<id> oppsLineItemIds) {
+        Map<id,List<String>> oppLineMap = new Map<id,List<String>>();
+        List<OpportunityLineItem> oppLineList = [SELECT OpportunityId,Name 
+                                                 FROM OpportunityLineItem];
+        System.debug(oppLineList.size());
+        for(OpportunityLineItem oppLine : oppLineList) {
+            if(oppLineMap.get(oppLine.OpportunityId) == null) {
+                List<String> opplineNameList = new List<String>();
+                opplineNameList.add(oppLine.Name);
+                oppLineMap.put(oppLine.OpportunityId,opplineNameList);
+            }
+            else {
+                oppLineMap.get(oppLine.OpportunityId).add(oppLine.Name);
+            }
+        }
+        return oppLineMap;
+    }
+}
